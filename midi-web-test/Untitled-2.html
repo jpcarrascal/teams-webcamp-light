@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <title>MIDI Output Selector</title>
+  </head>
+  <body>
+    <h1>MIDI Output Selector</h1>
+    <label for="midi-output">Select MIDI output device:</label>
+    <select id="midi-output"></select>
+    <br>
+    <button id="cc-0">Send CC 110 value 0</button>
+    <button id="cc-127">Send CC 110 value 127</button>
+    <script>
+      // Get the MIDI output devices
+      const midiOutputs = [];
+      const midiOutputSelect = document.getElementById('midi-output');
+      navigator.requestMIDIAccess().then(midiAccess => {
+        midiOutputs.push(...midiAccess.outputs.values());
+        // Add each MIDI output device to the dropdown
+        midiOutputs.forEach(output => {
+          const option = document.createElement('option');
+          option.value = output.id;
+          option.text = output.name;
+          midiOutputSelect.add(option);
+        });
+      }, () => {
+        console.log('Could not access your MIDI devices.');
+      });
+
+      // Send MIDI controller number 110 to the default output with the specified value
+      function sendCC(value) {
+        const outputId = midiOutputSelect.value;
+        const output = midiOutputs.find(output => output.id === outputId);
+        if (output) {
+          output.send([0xB0, 0x6E, value]);
+        }
+      }
+
+      // Add event listeners to the buttons
+      const offButton = document.getElementById('cc-0');
+      const onButton = document.getElementById('cc-127');
+      offButton.addEventListener('click', () => {
+        sendCC(0);
+      });
+      onButton.addEventListener('click', () => {
+        sendCC(127);
+      });
+    </script>
+  </body>
+</html>

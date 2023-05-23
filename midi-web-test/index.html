@@ -1,0 +1,115 @@
+<!--
+INITIAL PROMPT:
+Create a simple web app that does the following:
+
+- It lists the available MIDI output devices in the system in a dropdown
+- It lets you select one device from the list as the default output
+- It uses two buttons to send MIDI controller number 110 to the default output. One button sends value 0 and the other value 127
+-->
+
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <title>MIDI Controller</title>
+  </head>
+  <body>
+    <h1>MIDI Controller</h1>
+    <label for="midi-output">MIDI Output:</label>
+    <select id="midi-output"></select>
+    <br>
+    <button id="cc-127">On</button>
+    <button id="cc-0">Off</button>
+    <br />
+    <label for="max-value-slider">Max Brightness:</label>
+    <input type="range" id="max-value-slider" min="0" max="127" value="127" step="1">
+    <script>
+      // Request MIDI access
+      navigator.requestMIDIAccess().then(onMIDISuccess, onMIDIFailure);
+      let currentVal = 0;
+      let maxValue = 127;
+
+      // MIDI success callback
+      function onMIDISuccess(midiAccess) {
+        // Get the MIDI output devices
+        const midiOutputs = midiAccess.outputs.values();
+        const midiOutputSelect = document.getElementById('midi-output');
+
+        // Add each MIDI output device to the dropdown
+        for (let output = midiOutputs.next(); output && !output.done; output = midiOutputs.next()) {
+          const option = document.createElement('option');
+          option.value = output.value.id;
+          option.text = output.value.name;
+          midiOutputSelect.add(option);
+        }
+
+        // Add event listeners to the buttons
+        const offButton = document.getElementById('cc-0');
+        const onButton = document.getElementById('cc-127');
+        sendInterpolatedCC(0);
+        offButton.addEventListener('click', () => {
+            sendInterpolatedCC(0)}
+        );
+        onButton.addEventListener('click', () => {
+            sendInterpolatedCC(maxValue)}
+        );
+
+        window.onbeforeunload = function() {
+            sendCC(0);
+        }
+      }
+
+      const maxValueSlider = document.getElementById('max-value-slider');
+      maxValueSlider.addEventListener('input', () => {
+        maxValue = parseInt(maxValueSlider.value);
+        if(currentVal > 0) {
+          sendCC(maxValue);
+        }
+      });
+
+      // MIDI failure callback
+      function onMIDIFailure() {
+        console.error('Could not access MIDI devices.');
+      }
+
+      // Send a MIDI continuous controller message
+      function sendCC(value) {
+        const midiOutputSelect = document.getElementById('midi-output');
+        const midiOutputId = midiOutputSelect.value;
+        const ccMessage = [0xB0, 0x6E, value];
+        const midiAccess = navigator.requestMIDIAccess();
+        midiAccess.then((midi) => {
+          const midiOutput = midi.outputs.get(midiOutputId);
+          midiOutput.send(ccMessage);
+        });
+        currentVal = value;
+      }
+
+      function sendInterpolatedCC(/*startValue, */endValue) {
+        let startValue = currentVal;
+        const midiOutputSelect = document.getElementById('midi-output');
+        const midiOutputId = midiOutputSelect.value;
+        const ccMessage = [0xB0, 0x6E, startValue];
+        const midiAccess = navigator.requestMIDIAccess();
+        midiAccess.then((midi) => {
+            const midiOutput = midi.outputs.get(midiOutputId);
+            const interpolationDuration = maxValue*10; // 2 seconds
+            const interpolationInterval = 10; // 10 milliseconds
+            const interpolationSteps = interpolationDuration / interpolationInterval;
+            const interpolationValues = Array.from({ length: interpolationSteps }, (_, i) => Math.round(startValue + (endValue - startValue) * i / interpolationSteps));
+            interpolationValues.push(endValue);
+            let i = 0;
+            const interpolationIntervalId = setInterval(() => {
+                ccMessage[2] = interpolationValues[i];
+                midiOutput.send(ccMessage);
+                i++;
+                if (i >= interpolationValues.length) {
+                    clearInterval(interpolationIntervalId);
+                }
+            }, interpolationInterval);
+        });
+        currentVal = endValue;
+      }
+    </script>
+  </body>
+</html>
